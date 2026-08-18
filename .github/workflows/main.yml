@@ -1,38 +1,42 @@
-name: Build Android APK
+steps:
+- name: Checkout Code
+  uses: actions/checkout@v4
 
-on:
-  push:
-    branches: [ "main", "master" ]
-  workflow_dispatch:
+- name: Set up JDK 17
+  uses: actions/setup-java@v5
+  with:
+    java-version: '17'
+    distribution: 'temurin'
+    cache: 'gradle'
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+- name: Accept Android SDK Licenses
+  run: |
+    yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
+- name: Setup Gradle
+  uses: gradle/actions/setup-gradle@v4
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
+- name: Grant Execute Permission & Check Wrapper
+  run: |
+    if [ -f "./gradlew" ]; then
+      chmod +x gradlew
+    else
+      echo "Gradle wrapper not found, generating wrapper..."
+      gradle wrapper
+      chmod +x gradlew
+    fi
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-      continue-on-error: true
+- name: Build Debug APK
+  run: |
+    if [ -f "./gradlew" ]; then
+      ./gradlew assembleDebug --stacktrace --no-daemon
+    else
+      gradle assembleDebug --stacktrace --no-daemon
+    fi
 
-    - name: Build Debug APK
-      run: |
-        if [ -f "./gradlew" ]; then
-          ./gradlew assembleDebug --stacktrace
-        else
-          gradle assembleDebug --stacktrace
-        fi
-
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: FitFlow-App-APK
-        path: app/build/outputs/apk/debug/app-debug.apk
+- name: Upload APK Artifact
+  uses: actions/upload-artifact@v4
+  with:
+    name: FitFlow-App-APK
+    path: app/build/outputs/apk/**/*.apk
+    if-no-files-found: error
